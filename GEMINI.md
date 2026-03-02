@@ -26,6 +26,6 @@ This file provides the necessary context for Gemini CLI to maintain the architec
 3. **Advanced Vectorization:** Potentially pre-calculate canonical rank maps to further accelerate `annotate_table` (reducing it from 37s to <2s for the full taxonomy).
 
 ## Technical Environment
-- **Root Directory:** `/home/daniel/devel/joltax`
+- **Root Directory:** `/home/daniel/devel/JolTax`
 - **Primary Module:** `joltax/tree.py`
 - **Dependencies:** `numpy`, `polars`, `rapidfuzz`
