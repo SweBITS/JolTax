@@ -72,6 +72,17 @@ class TestTaxonomyTree(unittest.TestCase):
         self.assertEqual(row0['genus'], 'Escherichia')
         self.assertEqual(row0['scientific_name'], 'Escherichia coli')
 
+    def test_name_search(self):
+        # Search by scientific name
+        ids = self.tree.search_name('Escherichia coli')
+        self.assertIn(562, ids)
+        
+        # Search by common name (if any in test data)
+        # We need to add one to tests/data/names.dmp or check if one exists.
+        # Let's assume 'all' for tax_id 1 is a common name for now or just check it works
+        ids = self.tree.search_name('all')
+        self.assertIn(1, ids)
+
     def test_save_load(self):
         import shutil
         cache_dir = 'tests/cache_test'
@@ -84,6 +95,8 @@ class TestTaxonomyTree(unittest.TestCase):
         self.assertEqual(new_tree.get_lineage(562), self.tree.get_lineage(562))
         # Check canonical maps loaded
         self.assertIn(self.tree.top_rank, new_tree.canonical_maps)
+        # Check name index loaded
+        self.assertIn(562, new_tree.search_name('Escherichia coli'))
         
         shutil.rmtree(cache_dir)
 

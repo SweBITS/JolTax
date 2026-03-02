@@ -76,6 +76,7 @@ class TaxonomyTree:
         
         # Metadata storage
         self.names: Dict[int, str] = {}
+        self.common_names: Dict[int, str] = {}
         self.rank_names: List[str] = []
         self.top_rank: str = "domain"  # Default, will be detected
         self._source_nodes: Optional[str] = None
@@ -92,6 +93,9 @@ class TaxonomyTree:
         # Pre-calculated canonical rank maps (dense internal index -> TaxID)
         # Dictionary mapping rank name to np.ndarray of shape (num_nodes,)
         self.canonical_maps: Dict[str, np.ndarray] = {}
+        
+        # Name index for searching (Name -> List[TaxID])
+        self._name_to_ids: Dict[str, List[int]] = {}
         
         if nodes_file and names_file:
             self.build_from_dmp(nodes_file, names_file)
@@ -111,14 +115,35 @@ class TaxonomyTree:
         
         # 1. Parse Names
         logger.info(f"Parsing names from {names_file}...")
-        raw_names = {}
+        scientific_names = {}
+        common_names = {}
+        name_to_ids = {}
+        
         with open(names_file, 'r') as f:
             for name_line in f:
-                if 'scientific name' in name_line:
-                    parts = name_line.split('|')
-                    tax_id = int(parts[0].strip())
-                    name = parts[1].strip()
-                    raw_names[tax_id] = name
+                parts = name_line.split('|')
+                name_type = parts[3].strip()
+                
+                # Only care about scientific and genbank common names for now
+                if name_type not in ['scientific name', 'genbank common name']:
+                    continue
+                
+                tax_id = int(parts[0].strip())
+                name_txt = parts[1].strip()
+                
+                if name_type == 'scientific name':
+                    scientific_names[tax_id] = name_txt
+                elif name_type == 'genbank common name':
+                    common_names[tax_id] = name_txt
+                
+                # Populate search index
+                if name_txt not in name_to_ids:
+                    name_to_ids[name_txt] = []
+                name_to_ids[name_txt].append(tax_id)
+        
+        self.names = scientific_names
+        self.common_names = common_names
+        self._name_to_ids = name_to_ids
         
         # 2. Parse Nodes and initial parent structure
         logger.info(f"Parsing nodes from {nodes_file}...")
@@ -168,7 +193,6 @@ class TaxonomyTree:
                 self.parents[i] = self._id_to_index[parent_id]
             
             self.ranks[i] = rank_to_idx[temp_ranks[tid]]
-            self.names[tid] = raw_names.get(tid, f"Unknown_{tid}")
 
         # 4. Calculate depths
         logger.info("Calculating node depths...")
@@ -277,6 +301,10 @@ class TaxonomyTree:
         """Returns the scientific name of the given TaxID."""
         return self.names.get(tax_id, f"Unknown_{tax_id}")
 
+    def get_common_name(self, tax_id: int) -> Optional[str]:
+        """Returns the genbank common name of the given TaxID, if available."""
+        return self.common_names.get(tax_id)
+
     def get_rank(self, tax_id: int) -> str:
         """Returns the taxonomic rank of the given TaxID."""
         if tax_id not in self._id_to_index:
@@ -284,6 +312,13 @@ class TaxonomyTree:
             return "unknown"
         idx = self._id_to_index[tax_id]
         return self.rank_names[self.ranks[idx]]
+
+    def search_name(self, query: str) -> List[int]:
+        """
+        Searches for TaxIDs by name. Currently supports exact matches 
+        against scientific and common names. Returns a list of matching TaxIDs.
+        """
+        return self._name_to_ids.get(query, [])
 
     def get_clade(self, tax_id: int) -> List[int]:
         """Returns all TaxIDs in the clade rooted at the given TaxID."""
@@ -450,6 +485,8 @@ class TaxonomyTree:
         with open(os.path.join(directory, "metadata.pkl"), 'wb') as f:
             pickle.dump({
                 "names": self.names,
+                "common_names": self.common_names,
+                "name_to_ids": self._name_to_ids,
                 "rank_names": self.rank_names,
                 "id_to_index": self._id_to_index,
                 "top_rank": self.top_rank,
@@ -490,6 +527,8 @@ class TaxonomyTree:
 
             tree = cls()
             tree.names = meta["names"]
+            tree.common_names = meta.get("common_names", {})
+            tree._name_to_ids = meta.get("name_to_ids", {})
             tree.rank_names = meta["rank_names"]
             tree._id_to_index = meta["id_to_index"]
             tree.top_rank = meta.get("top_rank", "domain")
