@@ -2,7 +2,6 @@ import unittest
 import os
 import sys
 import numpy as np
-import pandas as pd
 import polars as pl
 
 # Add the project root to sys.path

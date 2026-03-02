@@ -28,4 +28,4 @@ This file provides the necessary context for Gemini CLI to maintain the architec
 ## Technical Environment
 - **Root Directory:** `/home/daniel/devel/taxatree`
 - **Primary Module:** `taxatree/tree.py`
-- **Dependencies:** `numpy`, `pandas`
+- **Dependencies:** `numpy`, `polars`, `rapidfuzz`

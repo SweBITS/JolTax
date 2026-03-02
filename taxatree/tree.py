@@ -17,7 +17,6 @@ from typing import Dict, List, Optional, Set, Union, Tuple
 from collections import namedtuple
 
 import numpy as np
-import pandas as pd
 import polars as pl
 from rapidfuzz import process, fuzz, utils
 

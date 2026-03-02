@@ -48,16 +48,29 @@ tree.save("ncbi_cache")
 ```
 
 ### 2. The Daily Research Phase (Fast Loading)
-In your daily scripts, you can skip the slow DMP parsing and load the processed cache in under a second.
+In your daily scripts, you can skip the slow DMP parsing and load the processed cache in under a second. `taxatree` automatically validates the cache version to ensure compatibility.
 
 ```python
 from taxatree import TaxonomyTree
 
-# Near-instant load
+# Near-instant load with version validation
 tree = TaxonomyTree.load("ncbi_cache")
 ```
 
-### 3. Analyzing a Clade
+### 3. Searching for Taxa by Name
+You can find TaxIDs using exact or fuzzy matching.
+
+```python
+# 1. Exact match
+df = tree.search_name("Escherichia coli")
+
+# 2. Fuzzy match (handles typos, returns ranked candidates)
+# Results are boosted for canonical ranks (Genus, Species, etc.)
+results = tree.search_name("Escherchia", fuzzy=True, limit=5)
+print(results)
+```
+
+### 4. Analyzing a Clade
 Suppose you are studying the diversity of a specific genus or family.
 
 ```python
@@ -69,28 +82,23 @@ print(f"Total nodes in Bacteria: {len(bacteria_nodes):,}")
 bacteria_species = tree.get_clade_at_rank(5016879, 'species')
 print(f"Total unique species in Bacteria: {len(bacteria_species):,}")
 ```
-**Expected Output:**
-```text
-Total nodes in Bacteria: 352,410
-Total unique species in Bacteria: 84,212
-```
 
-### 4. Annotating a Table
-This is the most common use case for research: turning a column of TaxIDs into a full taxonomic table.
+### 5. Annotating a Table
+This is the most common use case for research: turning a column of TaxIDs into a full taxonomic table. `taxatree` uses **Polars** for lightning-fast mass annotation.
 
 ```python
 # List of 200,000 TaxIDs from a classification file
 import numpy as np
 tax_ids = np.random.choice(tree._index_to_id, 200000)
 
-# Mass annotation
+# Mass annotation (under 1 second)
 df = tree.annotate_table(tax_ids)
 
-# Save to CSV for downstream analysis
-df.to_csv("annotated_results.csv", index=False)
+# Save to CSV using Polars
+df.write_csv("annotated_results.csv")
 ```
 **Expected Output:**
-The resulting DataFrame (`df`) will have columns ordered for maximum readability:
+The resulting Polars DataFrame (`df`) will have columns ordered for maximum readability:
 `tax_id` | `domain` | `kingdom` | ... | `scientific_name` | `rank`
 
 ---
@@ -105,47 +113,47 @@ The resulting DataFrame (`df`) will have columns ordered for maximum readability
 - *Note:* If files are provided, the tree is built immediately. If not, you must use `load()`.
 
 #### `@classmethod load(directory)`
-Loads a pre-processed binary cache from the specified directory. This is the recommended way to use `taxatree` in production.
+Loads a pre-processed binary cache. Raises `RuntimeError` if the cache was built with an incompatible version of `taxatree`.
 
 #### `save(directory)`
-Saves the internal arrays and provenance metadata to a directory.
+Saves the internal arrays, pre-calculated canonical maps, and name indices to a directory.
 
 ---
 
 ### Taxonomic Queries
 
+#### `get_name(tax_id: int) -> str`
+Returns the scientific name of the given TaxID.
+
+#### `get_common_name(tax_id: int) -> Optional[str]`
+Returns the GenBank common name, if available.
+
+#### `search_name(query: str, fuzzy: bool = False, limit: int = 10) -> polars.DataFrame`
+Finds TaxIDs matching the query string.
+- If `fuzzy=False`: Exact matches only.
+- If `fuzzy=True`: Uses RapidFuzz for approximate matching with smart taxonomic ranking.
+
 #### `get_lineage(tax_id: int) -> List[int]`
 Returns the full path from the root (ID: 1) to the given TaxID.
-- *Performance:* Fast O(depth) lookup.
 
 #### `get_clade(tax_id: int) -> List[int]`
 Returns a list of all TaxIDs (descendants) rooted at the given node.
-- *Performance:* Instant O(clade_size) range query.
 
 #### `get_clade_at_rank(tax_id: int, rank_name: str) -> List[int]`
 Returns all descendants of `tax_id` that belong to the specified rank.
-- *Example:* `get_clade_at_rank(2, 'genus')`.
-- *Performance:* Vectorized mask operation.
 
 #### `get_lca(tax_id_1: int, tax_id_2: int) -> int`
-Finds the Lowest Common Ancestor of two nodes.
-- *Performance:* O(log depth) via Binary Lifting.
+Finds the Lowest Common Ancestor of two nodes in $O(\log N)$ time.
 
 #### `get_distance(tax_id_1: int, tax_id_2: int) -> int`
 Returns the number of edges (hops) between two nodes in the tree.
-- *Performance:* O(log depth).
 
 ---
 
 ### Mass Operations
 
-#### `annotate_table(tax_ids: List[int]) -> pandas.DataFrame`
-Produces a formatted DataFrame with the following columns:
-- `tax_id`: The input ID.
-- `domain` / `superkingdom`: Consolidated top-level rank.
-- `kingdom` through `species`: The canonical ranks.
-- `scientific_name`: The scientific name of the taxon itself.
-- `rank`: The original rank string.
+#### `annotate_table(tax_ids: List[int]) -> polars.DataFrame`
+Produces a formatted Polars DataFrame using pre-calculated canonical maps for $O(1)$ lookup per row.
 
 ---
 
