@@ -7,9 +7,9 @@ import polars as pl
 # Add the project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from joltax.tree import TaxonomyTree
+from joltax.tree import JolTree
 
-class TestTaxonomyTree(unittest.TestCase):
+class TestJolTree(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.names_file = 'tests/data/names.dmp'
@@ -18,7 +18,7 @@ class TestTaxonomyTree(unittest.TestCase):
         if not os.path.exists(cls.names_file):
             raise FileNotFoundError(f"Missing test data: {cls.names_file}")
             
-        cls.tree = TaxonomyTree(nodes_file=cls.nodes_file, names_file=cls.names_file)
+        cls.tree = JolTree(nodes_file=cls.nodes_file, names_file=cls.names_file)
 
     def test_lineage(self):
         # 562 (E. coli) -> 561 (Escherichia) -> 543 -> 91347 -> 1236 -> 1224 -> 2 -> 1
@@ -96,7 +96,7 @@ class TestTaxonomyTree(unittest.TestCase):
             shutil.rmtree(cache_dir)
             
         self.tree.save(cache_dir)
-        new_tree = TaxonomyTree.load(cache_dir)
+        new_tree = JolTree.load(cache_dir)
         
         self.assertEqual(new_tree.get_lineage(562), self.tree.get_lineage(562))
         # Check name index loaded
@@ -126,7 +126,7 @@ class TestTaxonomyTree(unittest.TestCase):
             
         # Should raise RuntimeError
         with self.assertRaises(RuntimeError) as cm:
-            TaxonomyTree.load(cache_dir)
+            JolTree.load(cache_dir)
         
         self.assertIn("Incompatible taxonomy cache", str(cm.exception))
         shutil.rmtree(cache_dir)

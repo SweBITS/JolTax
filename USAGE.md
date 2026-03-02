@@ -32,13 +32,13 @@ You only need to build the tree once from NCBI or GTDB `.dmp` files.
 
 ```python
 import logging
-from joltax import TaxonomyTree
+from joltax import JolTree
 
 # Enable logging to see the build progress
 logging.getLogger('joltax').setLevel(logging.INFO)
 
 # Initial build (takes ~90 seconds for full NCBI)
-tree = TaxonomyTree(
+tree = JolTree(
     nodes_file='taxonomy/nodes.dmp', 
     names_file='taxonomy/names.dmp'
 )
@@ -51,10 +51,10 @@ tree.save("ncbi_cache")
 In your daily scripts, you can skip the slow DMP parsing and load the processed cache in under a second. `joltax` automatically validates the cache version to ensure compatibility.
 
 ```python
-from joltax import TaxonomyTree
+from joltax import JolTree
 
 # Near-instant load with version validation
-tree = TaxonomyTree.load("ncbi_cache")
+tree = JolTree.load("ncbi_cache")
 ```
 
 ### 3. Searching for Taxa by Name
@@ -107,7 +107,7 @@ The resulting Polars DataFrame (`df`) will have columns ordered for maximum read
 
 ### Initialization & Persistence
 
-#### `TaxonomyTree(nodes_file=None, names_file=None)`
+#### `JolTree(nodes_file=None, names_file=None)`
 - **`nodes_file`**: Path to `nodes.dmp`.
 - **`names_file`**: Path to `names.dmp`.
 - *Note:* If files are provided, the tree is built immediately. If not, you must use `load()`.

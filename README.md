@@ -17,16 +17,16 @@
 ## Quick Start
 
 ```python
-from joltax import TaxonomyTree
+from joltax import JolTree
 
 # Build and process the NCBI taxonomy
-tree = TaxonomyTree(nodes_file='nodes.dmp', names_file='names.dmp')
+tree = JolTree(nodes_file='nodes.dmp', names_file='names.dmp')
 
 # Save for instant loading next time
 tree.save('my_taxonomy_cache')
 
 # Re-load in seconds (with version validation)
-tree = TaxonomyTree.load('my_taxonomy_cache')
+tree = JolTree.load('my_taxonomy_cache')
 
 # Fuzzy search for a name (returns a Polars DataFrame)
 results = tree.search_name('Escherchia', fuzzy=True)

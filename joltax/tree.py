@@ -48,7 +48,7 @@ RANK_TO_CODE = {
     'species': 'S'
 }
 
-class TaxonomyTree:
+class JolTree:
     """
     A high-performance taxonomy representation using vectorized arrays.
     
@@ -529,7 +529,7 @@ class TaxonomyTree:
             }, f)
 
     @classmethod
-    def load(cls, directory: str) -> 'TaxonomyTree':
+    def load(cls, directory: str) -> 'JolTree':
         """Loads the vectorized tree from a binary cache directory."""
         logger.info(f"Loading binary cache from {directory}...")
         

@@ -1,1 +1,1 @@
-from .tree import TaxonomyTree
+from .tree import JolTree
