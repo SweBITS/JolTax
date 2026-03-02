@@ -19,6 +19,7 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 import polars as pl
+from rapidfuzz import process, fuzz, utils
 
 # Set up logging for the module
 logging.basicConfig(
@@ -94,8 +95,9 @@ class TaxonomyTree:
         # Dictionary mapping rank name to np.ndarray of shape (num_nodes,)
         self.canonical_maps: Dict[str, np.ndarray] = {}
         
-        # Name index for searching (Name -> List[TaxID])
+        # Name index for searching
         self._name_to_ids: Dict[str, List[int]] = {}
+        self._all_names_cached: Optional[List[str]] = None
         
         if nodes_file and names_file:
             self.build_from_dmp(nodes_file, names_file)
@@ -144,6 +146,7 @@ class TaxonomyTree:
         self.names = scientific_names
         self.common_names = common_names
         self._name_to_ids = name_to_ids
+        self._all_names_cached = list(name_to_ids.keys())
         
         # 2. Parse Nodes and initial parent structure
         logger.info(f"Parsing nodes from {nodes_file}...")
@@ -220,7 +223,6 @@ class TaxonomyTree:
         self.canonical_maps = {rank: np.full(num_nodes, -1, dtype=np.int32) for rank in canonical_columns}
         
         # Sort nodes by depth to ensure parents are processed before children
-        # (Though we can also just walk up for each node, which is simpler to implement)
         for i in range(num_nodes):
             curr_idx = i
             root_idx = self._id_to_index[1]
@@ -273,7 +275,6 @@ class TaxonomyTree:
                 self.entry_times[idx] = timer
                 timer += 1
                 stack.append((idx, True))
-                # Add children in reverse to maintain some order consistency
                 for child in reversed(children[idx]):
                     stack.append((child, False))
             else:
@@ -313,12 +314,70 @@ class TaxonomyTree:
         idx = self._id_to_index[tax_id]
         return self.rank_names[self.ranks[idx]]
 
-    def search_name(self, query: str) -> List[int]:
+    def search_name(self, query: str, fuzzy: bool = False, limit: int = 10, score_cutoff: float = 60.0) -> pl.DataFrame:
         """
-        Searches for TaxIDs by name. Currently supports exact matches 
-        against scientific and common names. Returns a list of matching TaxIDs.
+        Searches for TaxIDs by name.
+        
+        Args:
+            query: The name to search for.
+            fuzzy: If True, performs fuzzy matching using RapidFuzz.
+            limit: Maximum number of fuzzy results to return.
+            score_cutoff: Minimum similarity score (0-100) for fuzzy matches.
+            
+        Returns:
+            A Polars DataFrame containing matching TaxIDs and metadata.
         """
-        return self._name_to_ids.get(query, [])
+        if not fuzzy:
+            tids = self._name_to_ids.get(query, [])
+            results = []
+            for tid in tids:
+                idx = self._id_to_index[tid]
+                results.append({
+                    "tax_id": tid,
+                    "name": query,
+                    "rank": self.rank_names[self.ranks[idx]],
+                    "score": 100.0
+                })
+            return pl.DataFrame(results) if results else pl.DataFrame(schema=["tax_id", "name", "rank", "score"])
+
+        # Fuzzy matching path
+        if not self._all_names_cached:
+            self._all_names_cached = list(self._name_to_ids.keys())
+            
+        # rapidfuzz extract
+        matches = process.extract(
+            query, 
+            self._all_names_cached, 
+            scorer=fuzz.WRatio, 
+            limit=limit, 
+            processor=utils.default_process,
+            score_cutoff=score_cutoff
+        )
+        
+        data = []
+        for match_str, score, _ in matches:
+            tids = self._name_to_ids[match_str]
+            for tid in tids:
+                idx = self._id_to_index[tid]
+                rank = self.rank_names[self.ranks[idx]]
+                
+                # Smart Ranking: Boost scores for canonical ranks
+                rank_boost = 0.0
+                if rank in CANONICAL_RANKS:
+                    rank_boost = 2.0
+                
+                data.append({
+                    "tax_id": tid,
+                    "matched_name": match_str,
+                    "scientific_name": self.get_name(tid),
+                    "rank": rank,
+                    "score": score + rank_boost
+                })
+        
+        if not data:
+            return pl.DataFrame(schema=["tax_id", "matched_name", "scientific_name", "rank", "score"])
+            
+        return pl.DataFrame(data).sort("score", descending=True)
 
     def get_clade(self, tax_id: int) -> List[int]:
         """Returns all TaxIDs in the clade rooted at the given TaxID."""
@@ -330,7 +389,6 @@ class TaxonomyTree:
         entry = self.entry_times[idx]
         exit = self.exit_times[idx]
         
-        # Vectorized range check
         mask = (self.entry_times >= entry) & (self.entry_times <= exit)
         return self._index_to_id[mask].astype(int).tolist()
 
@@ -343,7 +401,6 @@ class TaxonomyTree:
             logger.warning(f"TaxID {tax_id} not found in taxonomy tree.")
             return []
         
-        # Determine the internal integer index for the target rank name
         try:
             target_rank_idx = self.rank_names.index(rank_name)
         except ValueError:
@@ -354,7 +411,6 @@ class TaxonomyTree:
         entry = self.entry_times[idx]
         exit = self.exit_times[idx]
         
-        # Combined vectorized filter: Range check (clade) AND Rank match
         mask = (self.entry_times >= entry) & (self.entry_times <= exit) & (self.ranks == target_rank_idx)
         return self._index_to_id[mask].astype(int).tolist()
 
@@ -371,7 +427,6 @@ class TaxonomyTree:
         idx1 = self._id_to_index[tax_id_1]
         idx2 = self._id_to_index[tax_id_2]
         
-        # Bring both nodes to the same depth
         if self.depths[idx1] < self.depths[idx2]:
             idx1, idx2 = idx2, idx1
         
@@ -383,7 +438,6 @@ class TaxonomyTree:
         if idx1 == idx2:
             return int(self._index_to_id[idx1])
             
-        # Lift both until they share a parent
         for i in reversed(range(self._up_table.shape[1])):
             if self._up_table[idx1, i] != self._up_table[idx2, i]:
                 idx1 = self._up_table[idx1, i]
@@ -394,11 +448,9 @@ class TaxonomyTree:
     def get_distance(self, tax_id_1: int, tax_id_2: int) -> int:
         """Calculates distance (number of edges) between two TaxIDs."""
         lca_id = self.get_lca(tax_id_1, tax_id_2)
-        
         idx1 = self._id_to_index[tax_id_1]
         idx2 = self._id_to_index[tax_id_2]
         idx_lca = self._id_to_index[lca_id]
-        
         return int(self.depths[idx1] + self.depths[idx2] - 2 * self.depths[idx_lca])
 
     def annotate_table(self, tax_ids: Union[List[int], np.ndarray]) -> pl.DataFrame:
@@ -407,37 +459,20 @@ class TaxonomyTree:
         Extremely efficient for large tables (e.g. 200k+ rows) using Polars and vectorized lookups.
         """
         logger.info(f"Annotating {len(tax_ids)} taxa...")
-        
-        # Build the set of canonical ranks to use for this taxonomy
         canonical_columns = [self.top_rank] + [r for r in CANONICAL_RANKS if r not in ['superkingdom', 'domain']]
-        
-        # Convert input to numpy array for efficient processing
         tax_ids_arr = np.array(tax_ids, dtype=np.int32)
-        
-        # Get internal indices
         indices = np.array([self._id_to_index.get(tid, -1) for tid in tax_ids_arr], dtype=np.int32)
         valid_mask = indices != -1
-        
-        # Prepare the base dictionary for Polars
         df_dict = {"tax_id": tax_ids_arr}
         
-        # Vectorized lookup for each canonical rank
         for rank in canonical_columns:
-            # Map indices to ancestor TaxIDs using pre-calculated maps
             ancestor_ids = np.full(len(tax_ids_arr), -1, dtype=np.int32)
             ancestor_ids[valid_mask] = self.canonical_maps[rank][indices[valid_mask]]
-            
-            # Map TaxIDs to Names using a dictionary lookup
-            # (In Polars we can use map_dict for high performance)
             df_dict[rank] = [self.names.get(int(tid)) if tid != -1 else None for tid in ancestor_ids]
 
-        # Add scientific_name and rank for the tax_id itself
         df_dict["scientific_name"] = [self.names.get(int(tid), "Unknown") if tid != -1 else "Unknown" for tid in tax_ids_arr]
         df_dict["rank"] = [self.rank_names[self.ranks[idx]] if idx != -1 else "unclassified" for idx in indices]
-        
         df = pl.DataFrame(df_dict)
-        
-        # Define final column order: tax_id, then canonical ranks, then scientific_name, then rank
         final_order = ['tax_id'] + canonical_columns + ['scientific_name', 'rank']
         return df.select(final_order)
 
@@ -449,14 +484,9 @@ class TaxonomyTree:
         logger.info("Initializing binary lifting table (Binary Lifting)...")
         num_nodes = len(self._index_to_id)
         max_log = int(np.ceil(np.log2(np.max(self.depths) + 1)))
-        
         self._up_table = np.zeros((num_nodes, max_log), dtype=np.int32)
-        
-        # Base case: 2^0 ancestor is the parent
         for i in range(num_nodes):
             self._up_table[i, 0] = self.parents[i]
-            
-        # Iterative doubling
         for j in range(1, max_log):
             for i in range(num_nodes):
                 self._up_table[i, j] = self._up_table[self._up_table[i, j-1], j-1]
@@ -474,7 +504,6 @@ class TaxonomyTree:
         np.save(os.path.join(directory, "entry_times.npy"), self.entry_times)
         np.save(os.path.join(directory, "exit_times.npy"), self.exit_times)
         
-        # Save canonical maps
         maps_dir = os.path.join(directory, "canonical_maps")
         if not os.path.exists(maps_dir):
             os.makedirs(maps_dir)
@@ -508,17 +537,13 @@ class TaxonomyTree:
         import pickle
         with open(os.path.join(directory, "metadata.pkl"), 'rb') as f:
             meta = pickle.load(f)
-            
-            # Version Validation
             prov = meta.get("provenance", {})
             saved_version = prov.get("package_version", "unknown")
-            
             def version_to_tuple(v):
                 try:
                     return tuple(map(int, v.split('.')))
                 except (ValueError, AttributeError):
                     return (0, 0, 0)
-            
             if version_to_tuple(saved_version) < version_to_tuple(MINIMUM_CACHE_VERSION):
                 raise RuntimeError(
                     f"Incompatible taxonomy cache. Saved version: {saved_version}, "
@@ -529,11 +554,10 @@ class TaxonomyTree:
             tree.names = meta["names"]
             tree.common_names = meta.get("common_names", {})
             tree._name_to_ids = meta.get("name_to_ids", {})
+            tree._all_names_cached = list(tree._name_to_ids.keys()) if tree._name_to_ids else None
             tree.rank_names = meta["rank_names"]
             tree._id_to_index = meta["id_to_index"]
             tree.top_rank = meta.get("top_rank", "domain")
-            
-            # Load provenance
             tree._build_time = prov.get("build_time")
             tree._source_nodes = prov.get("source_nodes")
             tree._source_names = prov.get("source_names")
@@ -545,7 +569,6 @@ class TaxonomyTree:
         tree.entry_times = np.load(os.path.join(directory, "entry_times.npy"))
         tree.exit_times = np.load(os.path.join(directory, "exit_times.npy"))
         
-        # Load canonical maps
         maps_dir = os.path.join(directory, "canonical_maps")
         if os.path.exists(maps_dir):
             for filename in os.listdir(maps_dir):
@@ -558,5 +581,4 @@ class TaxonomyTree:
         logger.info(f"  Build time:    {tree._build_time}")
         logger.info(f"  Node count:    {prov.get('node_count', 'Unknown'):,}")
         logger.info(f"  Top rank:      {tree.top_rank}")
-            
         return tree

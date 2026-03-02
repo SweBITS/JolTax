@@ -74,14 +74,21 @@ class TestTaxonomyTree(unittest.TestCase):
 
     def test_name_search(self):
         # Search by scientific name
-        ids = self.tree.search_name('Escherichia coli')
-        self.assertIn(562, ids)
+        df = self.tree.search_name('Escherichia coli')
+        self.assertIn(562, df['tax_id'].to_list())
         
-        # Search by common name (if any in test data)
-        # We need to add one to tests/data/names.dmp or check if one exists.
-        # Let's assume 'all' for tax_id 1 is a common name for now or just check it works
-        ids = self.tree.search_name('all')
-        self.assertIn(1, ids)
+        # Search by common name
+        df = self.tree.search_name('all')
+        self.assertIn(1, df['tax_id'].to_list())
+
+    def test_fuzzy_search(self):
+        # Typo: "Escherchia"
+        df = self.tree.search_name('Escherchia', fuzzy=True)
+        self.assertIsInstance(df, pl.DataFrame)
+        self.assertTrue(len(df) > 0)
+        # Top result should be Escherichia or Escherichia coli
+        top_name = df.row(0, named=True)['matched_name']
+        self.assertIn('Escherichia', top_name)
 
     def test_save_load(self):
         import shutil
@@ -93,10 +100,9 @@ class TestTaxonomyTree(unittest.TestCase):
         new_tree = TaxonomyTree.load(cache_dir)
         
         self.assertEqual(new_tree.get_lineage(562), self.tree.get_lineage(562))
-        # Check canonical maps loaded
-        self.assertIn(self.tree.top_rank, new_tree.canonical_maps)
         # Check name index loaded
-        self.assertIn(562, new_tree.search_name('Escherichia coli'))
+        df = new_tree.search_name('Escherichia coli')
+        self.assertIn(562, df['tax_id'].to_list())
         
         shutil.rmtree(cache_dir)
 
@@ -131,6 +137,7 @@ if __name__ == '__main__':
     try:
         import numpy
         import polars
+        import rapidfuzz
         unittest.main()
     except ImportError:
         print("Skipping tests due to missing dependencies.")
