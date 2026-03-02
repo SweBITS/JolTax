@@ -1,6 +1,6 @@
-# taxatree: User Guide & API Documentation
+# joltax: User Guide & API Documentation
 
-This guide provides a deep dive into the `taxatree` package, its core algorithms, and typical research workflows.
+This guide provides a deep dive into the `joltax` package, its core algorithms, and typical research workflows.
 
 ## Table of Contents
 1. [Core Concepts](#core-concepts)
@@ -13,10 +13,10 @@ This guide provides a deep dive into the `taxatree` package, its core algorithms
 ## Core Concepts
 
 ### Vectorization
-Unlike traditional libraries that store each TaxID as a separate Python object (consuming gigabytes of RAM), `taxatree` stores the entire taxonomy in contiguous NumPy arrays. A TaxID becomes a direct index into these arrays, allowing for O(1) attribute lookups and hardware-accelerated batch operations.
+Unlike traditional libraries that store each TaxID as a separate Python object (consuming gigabytes of RAM), `joltax` stores the entire taxonomy in contiguous NumPy arrays. A TaxID becomes a direct index into these arrays, allowing for O(1) attribute lookups and hardware-accelerated batch operations.
 
 ### Euler Tour Indexing
-To make clade queries (getting all descendants of a node) instantaneous, `taxatree` performs a one-time traversal to assign **Entry** and **Exit** timestamps to every node. A node $v$ is a descendant of $u$ if and only if $entry[u] \le entry[v] \le exit[u]$. This turns a complex tree traversal into a simple numeric range query.
+To make clade queries (getting all descendants of a node) instantaneous, `joltax` performs a one-time traversal to assign **Entry** and **Exit** timestamps to every node. A node $v$ is a descendant of $u$ if and only if $entry[u] \le entry[v] \le exit[u]$. This turns a complex tree traversal into a simple numeric range query.
 
 ### Binary Lifting (Skip Tables)
 Finding the Lowest Common Ancestor (LCA) is optimized using binary lifting. Instead of walking up one step at a time, each node stores its $2^k$-th ancestor (2nd, 4th, 8th, 16th, etc.). This allows finding the LCA of any two nodes in $O(\log N)$ time.
@@ -25,17 +25,17 @@ Finding the Lowest Common Ancestor (LCA) is optimized using binary lifting. Inst
 
 ## Workflow: How-To Guide
 
-A typical research workflow involving `taxatree` consists of three stages: **Build**, **Query**, and **Annotate**.
+A typical research workflow involving `joltax` consists of three stages: **Build**, **Query**, and **Annotate**.
 
 ### 1. The Build-and-Cache Phase
 You only need to build the tree once from NCBI or GTDB `.dmp` files.
 
 ```python
 import logging
-from taxatree import TaxonomyTree
+from joltax import TaxonomyTree
 
 # Enable logging to see the build progress
-logging.getLogger('taxatree').setLevel(logging.INFO)
+logging.getLogger('joltax').setLevel(logging.INFO)
 
 # Initial build (takes ~90 seconds for full NCBI)
 tree = TaxonomyTree(
@@ -48,10 +48,10 @@ tree.save("ncbi_cache")
 ```
 
 ### 2. The Daily Research Phase (Fast Loading)
-In your daily scripts, you can skip the slow DMP parsing and load the processed cache in under a second. `taxatree` automatically validates the cache version to ensure compatibility.
+In your daily scripts, you can skip the slow DMP parsing and load the processed cache in under a second. `joltax` automatically validates the cache version to ensure compatibility.
 
 ```python
-from taxatree import TaxonomyTree
+from joltax import TaxonomyTree
 
 # Near-instant load with version validation
 tree = TaxonomyTree.load("ncbi_cache")
@@ -84,7 +84,7 @@ print(f"Total unique species in Bacteria: {len(bacteria_species):,}")
 ```
 
 ### 5. Annotating a Table
-This is the most common use case for research: turning a column of TaxIDs into a full taxonomic table. `taxatree` uses **Polars** for lightning-fast mass annotation.
+This is the most common use case for research: turning a column of TaxIDs into a full taxonomic table. `joltax` uses **Polars** for lightning-fast mass annotation.
 
 ```python
 # List of 200,000 TaxIDs from a classification file
@@ -113,7 +113,7 @@ The resulting Polars DataFrame (`df`) will have columns ordered for maximum read
 - *Note:* If files are provided, the tree is built immediately. If not, you must use `load()`.
 
 #### `@classmethod load(directory)`
-Loads a pre-processed binary cache. Raises `RuntimeError` if the cache was built with an incompatible version of `taxatree`.
+Loads a pre-processed binary cache. Raises `RuntimeError` if the cache was built with an incompatible version of `joltax`.
 
 #### `save(directory)`
 Saves the internal arrays, pre-calculated canonical maps, and name indices to a directory.
@@ -160,7 +160,7 @@ Produces a formatted Polars DataFrame using pre-calculated canonical maps for $O
 ## The 2025 Taxonomy Standard
 As of early 2025, the NCBI Taxonomy has shifted away from `superkingdom` in favor of `domain` for cellular life. 
 
-`taxatree` handles this by:
+`joltax` handles this by:
 1. **Auto-Detection:** During the build, it identifies which rank is used as the top level.
 2. **Mutual Exclusivity:** It enforces that a taxonomy uses either `superkingdom` OR `domain` as its top-level identifier, but not both.
 3. **Dynamic Columns:** The `annotate_table` output dynamically renames its first taxonomic column based on what it detected in your specific database.

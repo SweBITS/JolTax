@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-taxatree/tree.py
+joltax/tree.py
 Implementation of a high-performance, vectorized taxonomy tree.
 """
 

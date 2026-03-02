@@ -101,7 +101,7 @@ venv.cache/
 # mypy
 .mypy_cache/
 
-# taxatree specific
+# joltax specific
 ncbi_cache/
 tests/cache_test/
 tests/version_test/

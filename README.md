@@ -1,8 +1,8 @@
-# taxatree
+# joltax
 
 **High-performance, vectorized NCBI taxonomy library for large-scale bioinformatics research.**
 
-`taxatree` is a Python library designed to handle the massive NCBI taxonomy (and derivatives like GTDB) with extreme efficiency. By replacing traditional object-oriented trees with contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
+`joltax` is a Python library designed to handle the massive NCBI taxonomy (and derivatives like GTDB) with extreme efficiency. By replacing traditional object-oriented trees with contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
 
 ## Key Features
 
@@ -17,7 +17,7 @@
 ## Quick Start
 
 ```python
-from taxatree import TaxonomyTree
+from joltax import TaxonomyTree
 
 # Build and process the NCBI taxonomy
 tree = TaxonomyTree(nodes_file='nodes.dmp', names_file='names.dmp')
@@ -39,7 +39,7 @@ bacteria_genera = tree.get_clade_at_rank(2, 'genus')
 ## Installation
 
 ```bash
-cd taxatree
+cd joltax
 pip install .
 ```
 

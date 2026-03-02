@@ -7,7 +7,7 @@ import polars as pl
 # Add the project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from taxatree.tree import TaxonomyTree
+from joltax.tree import TaxonomyTree
 
 class TestTaxonomyTree(unittest.TestCase):
     @classmethod
