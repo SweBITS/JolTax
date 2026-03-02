@@ -7,7 +7,7 @@ import polars as pl
 # Add the project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from joltax.tree import JolTree
+from joltax.joltree import JolTree
 
 class TestJolTree(unittest.TestCase):
     @classmethod

@@ -1,1 +1,1 @@
-from .tree import JolTree
+from .joltree import JolTree

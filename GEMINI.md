@@ -13,7 +13,7 @@ This file provides the necessary context for Gemini CLI to maintain the architec
 - **Persistence:** Use binary caches (NumPy `.npy` and Pickle for metadata) to avoid re-parsing `.dmp` files.
 
 ## Current State
-- [x] Core `JolTree` implementation in `joltax/tree.py`.
+- [x] Core `JolTree` implementation in `joltax/joltree.py`.
 - [x] Vectorized `get_lineage`, `get_clade`, `get_clade_at_rank`, `get_lca`, and `get_distance`.
 - [x] `annotate_table` for mass-annotation (benchmark: ~37s for 2.5M nodes).
 - [x] Provenance metadata (build time, source files, versioning).
@@ -27,5 +27,5 @@ This file provides the necessary context for Gemini CLI to maintain the architec
 
 ## Technical Environment
 - **Root Directory:** `/home/daniel/devel/JolTax`
-- **Primary Module:** `joltax/tree.py`
+- **Primary Module:** `joltax/joltree.py`
 - **Dependencies:** `numpy`, `polars`, `rapidfuzz`
