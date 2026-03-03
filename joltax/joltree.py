@@ -13,7 +13,7 @@ MINIMUM_CACHE_VERSION = "0.1.1"
 import logging
 import os
 import datetime
-from typing import Dict, List, Optional, Set, Union, Tuple
+from typing import Dict, List, Optional, Set, Union, Tuple, Any
 from collections import namedtuple
 
 import numpy as np
@@ -900,6 +900,25 @@ class JolTree:
         df = pl.DataFrame(df_dict)
         final_order = ['tax_id'] + canonical_columns + ['scientific_name', 'rank']
         return df.select(final_order)
+
+    @property
+    def available_ranks(self) -> List[str]:
+        """Returns a sorted list of all taxonomic ranks present in this tree."""
+        return sorted(self.rank_names)
+
+    @property
+    def summary(self) -> Dict[str, Any]:
+        """Returns a summary dictionary of the tree's metadata and provenance."""
+        return {
+            "node_count": len(self._index_to_id),
+            "top_rank": self.top_rank,
+            "build_time": self._build_time,
+            "source_nodes": self._source_nodes,
+            "source_names": self._source_names,
+            "package_version": __version__,
+            "max_depth": int(np.max(self.depths)) if len(self.depths) > 0 else 0,
+            "ranks_present": len(self.rank_names)
+        }
 
     def _ensure_up_table(self) -> None:
         """

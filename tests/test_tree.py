@@ -191,6 +191,17 @@ class TestJolTree(unittest.TestCase):
         top_name = df.row(0, named=True)['matched_name']
         self.assertIn('Escherichia', top_name)
 
+    def test_tree_helpers(self):
+        """Test the available_ranks and summary properties."""
+        ranks = self.tree.available_ranks
+        self.assertIn('species', ranks)
+        self.assertIn('genus', ranks)
+        
+        summary = self.tree.summary
+        self.assertEqual(summary['node_count'], 8)
+        self.assertEqual(summary['top_rank'], 'superkingdom')
+        self.assertIsInstance(summary['max_depth'], int)
+
     def test_save_load(self):
         import shutil
         cache_dir = 'tests/cache_test'
