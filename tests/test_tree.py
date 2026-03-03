@@ -38,6 +38,88 @@ class TestJolTree(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 JolTree(tax_dir=tmp_dir)
 
+    def test_lca_batch(self):
+        """Test vectorized LCA batch calculation."""
+        ids1 = [562, 562, 2, 1]
+        ids2 = [561, 2, 562, 1]
+        expected = [561, 2, 2, 1]
+        
+        results = self.tree.get_lca_batch(ids1, ids2)
+        self.assertTrue(np.array_equal(results, expected))
+        
+        # Test with NumPy arrays
+        results_np = self.tree.get_lca_batch(np.array(ids1), np.array(ids2))
+        self.assertTrue(np.array_equal(results_np, expected))
+
+    def test_distance_batch(self):
+        """Test vectorized distance batch calculation."""
+        ids1 = [562, 562]
+        ids2 = [561, 2]
+        expected = [1, 6]
+        
+        results = self.tree.get_distance_batch(ids1, ids2)
+        self.assertTrue(np.array_equal(results, expected))
+
+    def test_get_clade_at_rank(self):
+        """Test get_clade_at_rank with valid and invalid ranks."""
+        # 2 (Bacteria) has 562 (species)
+        species_in_bacteria = self.tree.get_clade_at_rank(2, 'species')
+        self.assertIn(562, species_in_bacteria)
+        
+        # Test invalid rank
+        self.assertEqual(self.tree.get_clade_at_rank(2, 'non_existent_rank'), [])
+        
+        # Test node with no descendants at that rank
+        self.assertEqual(self.tree.get_clade_at_rank(562, 'genus'), [])
+
+    def test_get_indices(self):
+        """Test vectorized index lookup with valid and invalid IDs."""
+        ids = np.array([1, 562, 999999])
+        indices = self.tree._get_indices(ids)
+        self.assertEqual(len(indices), 3)
+        self.assertNotEqual(indices[0], -1)
+        self.assertNotEqual(indices[1], -1)
+        self.assertEqual(indices[2], -1)
+
+    def test_lca_special_cases(self):
+        """Test LCA with root, same node, and missing nodes."""
+        # LCA of node and itself
+        self.assertEqual(self.tree.get_lca(562, 562), 562)
+        # LCA with root
+        self.assertEqual(self.tree.get_lca(562, 1), 1)
+        # LCA with missing node (should return 1 as per implementation)
+        self.assertEqual(self.tree.get_lca(562, 999999), 1)
+
+    def test_annotate_table_missing_ranks(self):
+        """Test mass annotation when nodes are missing certain canonical ranks."""
+        # 2 (Bacteria) is a superkingdom, so it should have None for kingdom, phylum, etc.
+        df = self.tree.annotate_table([2])
+        row = df.row(0, named=True)
+        self.assertEqual(row['superkingdom'], 'Bacteria')
+        self.assertIsNone(row['genus'])
+        self.assertIsNone(row['species'])
+
+    def test_search_name_edge_cases(self):
+        """Test search_name with empty query and no matches."""
+        # Empty query (exact)
+        df = self.tree.search_name("")
+        self.assertTrue(df.is_empty())
+        
+        # No matches (exact)
+        df = self.tree.search_name("NonExistentOrganism")
+        self.assertTrue(df.is_empty())
+        
+        # No matches (fuzzy)
+        df = self.tree.search_name("XYZ123", fuzzy=True, score_cutoff=99.9)
+        self.assertTrue(df.is_empty())
+
+    def test_vectorized_cache_idempotency(self):
+        """Ensure _prepare_vectorized_caches can be called multiple times safely."""
+        self.tree._prepare_vectorized_caches()
+        self.tree._prepare_vectorized_caches()
+        # Should still work
+        self.assertEqual(self.tree.get_name(562), 'Escherichia coli')
+
     def test_lineage(self):
         # 562 (E. coli) -> 561 (Escherichia) -> 543 -> 91347 -> 1236 -> 1224 -> 2 -> 1
         lineage = self.tree.get_lineage(562)
