@@ -1,1 +1,1 @@
-from .joltree import JolTree
+from .joltree import JolTree, __version__
