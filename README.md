@@ -44,10 +44,6 @@ pip install .
 ```
 
 Requires: `numpy`, `polars`, `psutil`, `rapidfuzz`.
-pip install .
-```
-
-Requires: `numpy`, `polars`, `pandas`, `rapidfuzz`.
 
 ## Documentation
 
