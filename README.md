@@ -45,7 +45,7 @@ cd joltax
 pip install .
 ```
 
-Requires: `numpy`, `polars`, `psutil`, `rapidfuzz`.
+Requires: `numpy`, `polars`, `rapidfuzz`.
 
 ## Documentation
 
