@@ -4,7 +4,7 @@ joltax/joltree.py
 Implementation of a high-performance, vectorized taxonomy tree.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # The minimum version of a saved taxonomy cache that is compatible with this software.
 # Increment this when making breaking changes to the binary layout or metadata structure.

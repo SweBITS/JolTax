@@ -4,16 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "joltax"
-version = "0.1.0"
+version = "0.1.2"
 authors = [
   { name="Daniel Svensson", email="daniel.svensson@umu.se" },
 ]
-description = "A high-performance, vectorized NCBI taxonomy library for rapid research and large-scale data annotation."
+description = "JolTax is a high-performance, vectorized taxonomy library for Python."
 readme = "README.md"
 requires-python = ">=3.8"
+license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -25,7 +26,9 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/danisven/joltax"
+"Homepage" = "https://github.com/SweBiTS/JolTax"
+"Bug Tracker" = "https://github.com/SweBiTS/JolTax/issues"
+"Source Code" = "https://github.com/SweBiTS/JolTax"
 
 [tool.setuptools]
 packages = ["joltax"]

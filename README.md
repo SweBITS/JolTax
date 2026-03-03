@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/logo.png" alt="joltax logo" width="300">
+  <img src="https://raw.githubusercontent.com/SweBiTS/JolTax/main/assets/logo.png" alt="joltax logo" width="300">
 </p>
 
-# joltax
+# JolTax
 
 **High-performance, vectorized taxonomy library for Python.**
 
-`JolTax` is a Python library designed to handle massive taxonomies with extreme efficiency. By representing taxonomy trees as contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
+JolTax is a Python library designed to handle massive taxonomies with extreme efficiency. By representing taxonomy trees as contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
 
 ## Key Features
 - **Vectorized Performance:** Uses hardware-accelerated NumPy operations for million-scale property lookups.
@@ -19,7 +19,7 @@
 ## Quick Start
 
 ```python
-from joltax.joltree import JolTree
+from joltax import JolTree
 
 # Build and process the NCBI taxonomy
 tree = JolTree(nodes_file='nodes.dmp', names_file='names.dmp')
@@ -41,12 +41,11 @@ print(results)
 ## Installation
 
 ```bash
-cd joltax
-pip install .
+pip install joltax
 ```
 
 Requires: `numpy`, `polars`, `rapidfuzz`.
 
 ## Documentation
 
-For a detailed API reference and a comprehensive "How-To" guide with example workflows, please see [USAGE.md](./USAGE.md).
+For a detailed API reference and a comprehensive "How-To" guide with example workflows, please see [USAGE.md](https://github.com/SweBiTS/JolTax/blob/main/USAGE.md).
