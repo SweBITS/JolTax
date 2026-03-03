@@ -123,62 +123,72 @@ df.write_parquet("annotated_results.parquet")
 
 ---
 
+### 7. Error Handling (Strict vs. Safe Mode)
+By default, `joltax` operates in **Strict Mode** (`strict=True`). If you request metadata or a relationship for a TaxID that does not exist in the tree, it will raise a `TaxIDNotFoundError`.
+
+To handle missing IDs gracefully (e.g., when processing old datasets with deprecated TaxIDs), you can use **Safe Mode** (`strict=False`).
+
+```python
+from joltax.joltree import TaxIDNotFoundError
+
+# 1. Default (Strict)
+try:
+    name = tree.get_name(999999)
+except TaxIDNotFoundError:
+    print("This ID is missing from our taxonomy!")
+
+# 2. Safe Mode (Standardized Defaults)
+name = tree.get_name(999999, strict=False) # Returns None
+lineage = tree.get_lineage(999999, strict=False) # Returns []
+lca = tree.get_lca(562, 999999, strict=False) # Returns None
+```
+
+**Note:** `strict=True` only triggers if the **TaxID itself is missing**. If the TaxID is valid but a specific attribute (like a common name) is not recorded, `joltax` will return `None` without raising an error.
+
+---
+
 ## API Reference
 
 ### Initialization & Persistence
 
 #### `JolTree(tax_dir=None, nodes=None, names=None)`
-- **`tax_dir`**: Path to a directory containing both `nodes.dmp` and `names.dmp`.
-- **`nodes`**: Path to `nodes.dmp`.
-- **`names`**: Path to `names.dmp`.
-- *Note:* If files or a directory are provided, the tree is built immediately. If not, you must use `load()`.
+...
+#### `get_name(tax_id: int, strict: bool = True) -> Optional[str]`
+Returns the scientific name of the given TaxID. Raises `TaxIDNotFoundError` if ID is missing and `strict=True`.
 
-#### `@classmethod load(directory)`
-Loads a pre-processed binary cache. Raises `RuntimeError` if the cache was built with an incompatible version of `joltax`.
-
-#### `save(directory)`
-Saves the internal arrays, pre-calculated canonical maps, and name indices. Uses Arrow IPC for string metadata.
-
----
-
-### Taxonomic Queries
-
-#### `get_name(tax_id: int) -> str`
-Returns the scientific name of the given TaxID.
-
-#### `get_common_name(tax_id: int) -> Optional[str]`
-Returns the GenBank common name, if available.
+#### `get_common_name(tax_id: int, strict: bool = True) -> Optional[str]`
+Returns the GenBank common name, if available. Returns `None` for valid TaxIDs without a common name (no error).
 
 #### `search_name(query: str, fuzzy: bool = False, limit: int = 10) -> polars.DataFrame`
-Finds TaxIDs matching the query string using the optimized Polars search index.
+Finds TaxIDs matching the query string. (Fuzzy search does not use the `strict` flag).
 
-#### `get_lineage(tax_id: int) -> List[int]`
+#### `get_lineage(tax_id: int, strict: bool = True) -> List[int]`
 Returns the full path from the root (ID: 1) to the given TaxID.
 
-#### `get_clade(tax_id: int) -> List[int]`
+#### `get_clade(tax_id: int, strict: bool = True) -> List[int]`
 Returns a list of all TaxIDs (descendants) rooted at the given node.
 
-#### `get_clade_at_rank(tax_id: int, rank_name: str) -> List[int]`
+#### `get_clade_at_rank(tax_id: int, rank_name: str, strict: bool = True) -> List[int]`
 Returns all descendants of `tax_id` that belong to the specified rank.
 
-#### `get_lca(tax_id_1: int, tax_id_2: int) -> int`
-Finds the Lowest Common Ancestor of two nodes in $O(\log N)$ time.
+#### `get_lca(tax_id_1: int, tax_id_2: int, strict: bool = True) -> Optional[int]`
+Finds the Lowest Common Ancestor of two nodes.
 
-#### `get_lca_batch(ids1: np.ndarray, ids2: np.ndarray) -> np.ndarray`
-Hyper-vectorized batch LCA calculation. Processes millions of pairs per second.
+#### `get_lca_batch(ids1: np.ndarray, ids2: np.ndarray, strict: bool = True) -> np.ndarray`
+Hyper-vectorized batch LCA calculation. If `strict=False`, missing IDs result in `-1`.
 
-#### `get_distance(tax_id_1: int, tax_id_2: int) -> int`
+#### `get_distance(tax_id_1: int, tax_id_2: int, strict: bool = True) -> Optional[int]`
 Returns the number of edges (hops) between two nodes.
 
-#### `get_distance_batch(ids1: np.ndarray, ids2: np.ndarray) -> np.ndarray`
-Vectorized batch distance calculation.
+#### `get_distance_batch(ids1: np.ndarray, ids2: np.ndarray, strict: bool = True) -> np.ndarray`
+Vectorized batch distance calculation. If `strict=False`, missing IDs result in `-1`.
 
 ---
 
 ### Mass Operations
 
-#### `annotate_table(tax_ids: List[int]) -> polars.DataFrame`
-Produces a formatted Polars DataFrame using vectorized lookups and Polars `gather`.
+#### `annotate_table(tax_ids: List[int], strict: bool = True) -> polars.DataFrame`
+Produces a formatted Polars DataFrame. If `strict=False`, rows with missing TaxIDs will have `null` values for all metadata columns.
 
 ---
 

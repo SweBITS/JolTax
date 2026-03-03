@@ -36,7 +36,12 @@ lcas = tree.get_lca_batch(ids1, ids2)
 
 # Fuzzy search for a name (returns a Polars DataFrame)
 results = tree.search_name('Escherchia', fuzzy=True)
-print(results)
+
+# Strict error handling by default
+try:
+    tree.get_name(999999) # Raises TaxIDNotFoundError
+except Exception as e:
+    name = tree.get_name(999999, strict=False) # Returns None
 ```
 
 ## Installation
