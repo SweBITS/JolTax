@@ -648,6 +648,7 @@ class JolTree:
             return None
             
         self._ensure_up_table()
+        assert self._up_table is not None, "up_table must be initialized"
         
         if self.depths[idx1] < self.depths[idx2]:
             idx1, idx2 = idx2, idx1
@@ -725,6 +726,7 @@ class JolTree:
             raise ValueError("Input arrays must have the same shape.")
             
         self._ensure_up_table()
+        assert self._up_table is not None, "up_table must be initialized"
         
         idx1 = self._get_indices(ids1)
         idx2 = self._get_indices(ids2)
