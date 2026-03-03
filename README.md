@@ -4,19 +4,17 @@
 
 # joltax
 
-**High-performance, vectorized NCBI taxonomy library for large-scale bioinformatics research.**
+**High-performance, vectorized taxonomy library for Python.**
 
-`joltax` is a Python library designed to handle the massive NCBI taxonomy (and derivatives like GTDB) with extreme efficiency. By replacing traditional object-oriented trees with contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
+`JolTax` is a Python library designed to handle massive taxonomies with extreme efficiency. By representing taxonomy trees as contiguous NumPy arrays and leveraging Polars for mass data handling, it achieves lightning-fast traversals, constant-time clade queries, and rapid mass annotation of large datasets.
 
 ## Key Features
 - **Vectorized Performance:** Uses hardware-accelerated NumPy operations for million-scale property lookups.
-- **Memory Efficient:** Optimized string store using Polars/Arrow reduces RAM footprint by ~70% compared to standard Python dicts.
-- **2025 Taxonomy Ready:** Native support for the recent NCBI/GTDB shift from `superkingdom` to `domain`.
-- **Fuzzy Name Search:** Rapid, rank-aware fuzzy matching using RapidFuzz to find TaxIDs from names.
-- **Euler Tour Indexing:** Instant clade range queries (even for millions of nodes).
-- **Hyper-Vectorized LCA:** Batch Lowest Common Ancestor (LCA) and distance calculations at million-query-per-second speeds.
-- **Mass Annotation:** Annotate tables with 2,000,000+ rows in under a second using Polars.
-- **Full Provenance:** Binary caches store build timestamps, version validation, and source file paths.
+- **Memory Efficient:** Optimized string store using Polars/Arrow reduces RAM footprint.
+- **Fuzzy Name Search:** Rapid fuzzy matching using RapidFuzz to find TaxIDs from names.
+- **Instant Clade Queries:** Quickly find all descendants of any node (even millions) using optimized range indexing.
+- **Hyper-Vectorized LCA search:** Lowest Common Ancestor (LCA) search and node-to-node distance calculations at lightning speeds.
+- **Mass Annotation:** Annotate massive TaxID tables with 2,000,000+ rows in under a second using Polars.
 
 ## Quick Start
 
