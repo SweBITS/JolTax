@@ -465,17 +465,21 @@ class JolTree:
             idx1, idx2 = idx2, idx1
         
         diff = self.depths[idx1] - self.depths[idx2]
-        for i in range(self._up_table.shape[1]):
+        max_log = self._up_table.shape[0]
+        
+        for i in range(max_log):
             if (diff >> i) & 1:
-                idx1 = self._up_table[idx1, i]
+                idx1 = self._up_table[i, idx1]
                 
         if idx1 == idx2:
             return int(self._index_to_id[idx1])
             
-        for i in reversed(range(self._up_table.shape[1])):
-            if self._up_table[idx1, i] != self._up_table[idx2, i]:
-                idx1 = self._up_table[idx1, i]
-                idx2 = self._up_table[idx2, i]
+        for i in reversed(range(max_log)):
+            up1 = self._up_table[i, idx1]
+            up2 = self._up_table[i, idx2]
+            if up1 != up2:
+                idx1 = up1
+                idx2 = up2
                 
         return int(self._index_to_id[self.parents[idx1]])
 
@@ -486,6 +490,86 @@ class JolTree:
         idx2 = self._get_index(tax_id_2)
         idx_lca = self._get_index(lca_id)
         return int(self.depths[idx1] + self.depths[idx2] - 2 * self.depths[idx_lca])
+
+    def get_lca_batch(self, ids1: Union[List[int], np.ndarray], ids2: Union[List[int], np.ndarray]) -> np.ndarray:
+        """
+        Calculates Lowest Common Ancestor for arrays of TaxIDs.
+        Hyper-vectorized implementation for peak performance.
+        """
+        ids1 = np.array(ids1, dtype=np.int32)
+        ids2 = np.array(ids2, dtype=np.int32)
+        
+        if ids1.shape != ids2.shape:
+            raise ValueError("Input arrays must have the same shape.")
+            
+        self._ensure_up_table()
+        
+        idx1 = self._get_indices(ids1)
+        idx2 = self._get_indices(ids2)
+        
+        # Handle missing IDs by pointing to root (index 0)
+        valid_mask = (idx1 != -1) & (idx2 != -1)
+        s_idx1 = np.where(valid_mask, idx1, 0)
+        s_idx2 = np.where(valid_mask, idx2, 0)
+        
+        # 1. Bring both nodes to the same depth
+        d1 = self.depths[s_idx1]
+        d2 = self.depths[s_idx2]
+        
+        # Ensure s_idx1 is the deeper one
+        swap = d1 < d2
+        s_idx1[swap], s_idx2[swap] = s_idx2[swap], s_idx1[swap]
+        
+        diff = np.abs(d1 - d2)
+        max_log = self._up_table.shape[0]
+        
+        for i in range(max_log):
+            mask = (diff >> i) & 1 == 1
+            if np.any(mask):
+                s_idx1[mask] = self._up_table[i, s_idx1[mask]]
+            
+        # 2. Binary search for the LCA
+        lca_indices = s_idx1.copy()
+        not_same = s_idx1 != s_idx2
+        
+        if np.any(not_same):
+            sub1 = s_idx1[not_same]
+            sub2 = s_idx2[not_same]
+            
+            for i in reversed(range(max_log)):
+                up1 = self._up_table[i, sub1]
+                up2 = self._up_table[i, sub2]
+                
+                diff_up = up1 != up2
+                sub1[diff_up] = up1[diff_up]
+                sub2[diff_up] = up2[diff_up]
+            
+            lca_indices[not_same] = self.parents[sub1]
+            
+        results = self._index_to_id[lca_indices]
+        results[~valid_mask] = 1
+        return results
+
+    def get_distance_batch(self, ids1: Union[List[int], np.ndarray], ids2: Union[List[int], np.ndarray]) -> np.ndarray:
+        """Vectorized distance calculation for arrays of TaxIDs."""
+        ids1 = np.array(ids1, dtype=np.int32)
+        ids2 = np.array(ids2, dtype=np.int32)
+        
+        lca_ids = self.get_lca_batch(ids1, ids2)
+        
+        idx1 = self._get_indices(ids1)
+        idx2 = self._get_indices(ids2)
+        idx_lca = self._get_indices(lca_ids)
+        
+        # Mask invalid lookups to avoid OOB errors
+        valid = (idx1 != -1) & (idx2 != -1) & (idx_lca != -1)
+        
+        dists = np.zeros(len(ids1), dtype=np.int32)
+        if np.any(valid):
+            v1, v2, vl = idx1[valid], idx2[valid], idx_lca[valid]
+            dists[valid] = self.depths[v1] + self.depths[v2] - 2 * self.depths[vl]
+            
+        return dists
 
     def annotate_table(self, tax_ids: Union[List[int], np.ndarray]) -> pl.DataFrame:
         """
@@ -537,15 +621,21 @@ class JolTree:
         if self._up_table is not None:
             return
             
-        logger.info("Initializing binary lifting table (Binary Lifting)...")
+        logger.info("Initializing binary lifting table (Hyper-Vectorized)...")
         num_nodes = len(self._index_to_id)
         max_log = int(np.ceil(np.log2(np.max(self.depths) + 1)))
-        self._up_table = np.zeros((num_nodes, max_log), dtype=np.int32)
-        for i in range(num_nodes):
-            self._up_table[i, 0] = self.parents[i]
+        
+        # Shape: (max_log, num_nodes) - optimized for contiguous column access
+        self._up_table = np.zeros((max_log, num_nodes), dtype=np.int32)
+        
+        # Power 2^0 is just the parents
+        self._up_table[0, :] = self.parents
+        
+        # Power 2^j = 2^{j-1} jump from the 2^{j-1} ancestor
+        # Fully vectorized initialization
         for j in range(1, max_log):
-            for i in range(num_nodes):
-                self._up_table[i, j] = self._up_table[self._up_table[i, j-1], j-1]
+            prev_ancestors = self._up_table[j-1, :]
+            self._up_table[j, :] = self._up_table[j-1, prev_ancestors]
 
     def save(self, directory: str) -> None:
         """Saves the vectorized tree to a directory for fast loading."""
