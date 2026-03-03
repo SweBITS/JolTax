@@ -648,24 +648,25 @@ class JolTree:
             return None
             
         self._ensure_up_table()
-        assert self._up_table is not None, "up_table must be initialized"
+        up_table = self._up_table
+        assert up_table is not None, "up_table must be initialized"
         
         if self.depths[idx1] < self.depths[idx2]:
             idx1, idx2 = idx2, idx1
         
         diff = self.depths[idx1] - self.depths[idx2]
-        max_log = self._up_table.shape[0]
+        max_log = up_table.shape[0]
         
         for i in range(max_log):
             if (diff >> i) & 1:
-                idx1 = self._up_table[i, idx1]
+                idx1 = up_table[i, idx1]
                 
         if idx1 == idx2:
             return int(self._index_to_id[idx1])
             
         for i in reversed(range(max_log)):
-            up1 = self._up_table[i, idx1]
-            up2 = self._up_table[i, idx2]
+            up1 = up_table[i, idx1]
+            up2 = up_table[i, idx2]
             if up1 != up2:
                 idx1 = up1
                 idx2 = up2
@@ -726,7 +727,8 @@ class JolTree:
             raise ValueError("Input arrays must have the same shape.")
             
         self._ensure_up_table()
-        assert self._up_table is not None, "up_table must be initialized"
+        up_table = self._up_table
+        assert up_table is not None, "up_table must be initialized"
         
         idx1 = self._get_indices(ids1_arr)
         idx2 = self._get_indices(ids2_arr)
@@ -752,12 +754,12 @@ class JolTree:
         s_idx1[swap], s_idx2[swap] = s_idx2[swap], s_idx1[swap]
         
         diff = np.abs(d1 - d2)
-        max_log = self._up_table.shape[0]
+        max_log = up_table.shape[0]
         
         for i in range(max_log):
             mask = (diff >> i) & 1 == 1
             if np.any(mask):
-                s_idx1[mask] = self._up_table[i, s_idx1[mask]]
+                s_idx1[mask] = up_table[i, s_idx1[mask]]
             
         # 2. Binary search for the LCA
         lca_indices = s_idx1.copy()
@@ -768,8 +770,8 @@ class JolTree:
             sub2 = s_idx2[not_same]
             
             for i in reversed(range(max_log)):
-                up1 = self._up_table[i, sub1]
-                up2 = self._up_table[i, sub2]
+                up1 = up_table[i, sub1]
+                up2 = up_table[i, sub2]
                 
                 diff_up = up1 != up2
                 sub1[diff_up] = up1[diff_up]
@@ -841,11 +843,11 @@ class JolTree:
             raise TypeError(f"tax_ids must be an integer, list, or numpy array, got {type(tax_ids).__name__}")
             
         if isinstance(tax_ids, (int, np.integer)):
-            current_ids = [int(tax_ids)]
+            ids_arr = np.array([int(tax_ids)], dtype=np.int32)
         else:
-            current_ids = tax_ids
+            # tax_ids must be list or np.ndarray here
+            ids_arr = np.array(tax_ids, dtype=np.int32)
             
-        ids_arr = np.array(current_ids, dtype=np.int32)
         indices = self._get_indices(ids_arr)
         
         if strict:
@@ -865,6 +867,14 @@ class JolTree:
         # Ensure caches are ready
         if self._sci_names_lookup is None:
             self._prepare_vectorized_caches()
+        
+        sci_names_lookup = self._sci_names_lookup
+        rank_names_series = self._rank_names_series
+        ranks_extended = self._ranks_extended
+        
+        assert sci_names_lookup is not None
+        assert rank_names_series is not None
+        assert ranks_extended is not None
             
         df_dict = {"tax_id": ids_arr}
         
@@ -878,14 +888,14 @@ class JolTree:
             safe_anc_indices = np.where(ancestor_indices != -1, ancestor_indices, dummy_idx)
             
             # Vectorized gather from Polars
-            df_dict[rank] = self._sci_names_lookup.gather(safe_anc_indices.astype(np.int32))
+            df_dict[rank] = sci_names_lookup.gather(safe_anc_indices.astype(np.int32))
 
         # Scientific name for the input TaxID
-        df_dict["scientific_name"] = self._sci_names_lookup.gather(safe_indices.astype(np.int32))
+        df_dict["scientific_name"] = sci_names_lookup.gather(safe_indices.astype(np.int32))
         
         # Rank for the input TaxID
-        target_rank_indices = self._ranks_extended[safe_indices]
-        df_dict["rank"] = self._rank_names_series.gather(target_rank_indices.astype(np.int32))
+        target_rank_indices = ranks_extended[safe_indices]
+        df_dict["rank"] = rank_names_series.gather(target_rank_indices.astype(np.int32))
         
         df = pl.DataFrame(df_dict)
         final_order = ['tax_id'] + canonical_columns + ['scientific_name', 'rank']
@@ -906,16 +916,17 @@ class JolTree:
         max_log = int(np.ceil(np.log2(np.max(self.depths) + 1)))
         
         # Shape: (max_log, num_nodes) - optimized for contiguous column access
-        self._up_table = np.zeros((max_log, num_nodes), dtype=np.int32)
+        up_table = np.zeros((max_log, num_nodes), dtype=np.int32)
+        self._up_table = up_table
         
         # Power 2^0 is just the parents
-        self._up_table[0, :] = self.parents
+        up_table[0, :] = self.parents
         
         # Power 2^j = 2^{j-1} jump from the 2^{j-1} ancestor
         # Fully vectorized initialization
         for j in range(1, max_log):
-            prev_ancestors = self._up_table[j-1, :]
-            self._up_table[j, :] = self._up_table[j-1, prev_ancestors]
+            prev_ancestors = up_table[j-1, :]
+            up_table[j, :] = up_table[j-1, prev_ancestors]
 
     def save(self, directory: str) -> None:
         """
