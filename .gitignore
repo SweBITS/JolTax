@@ -102,6 +102,7 @@ venv.cache/
 .mypy_cache/
 
 # joltax specific
-ncbi_cache/
+ncbi_cache*/
 tests/cache_test/
 tests/version_test/
+*.dmp
