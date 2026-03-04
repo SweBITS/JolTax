@@ -22,6 +22,7 @@ from rapidfuzz import process, fuzz, utils
 
 # Set up logging for the module
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # Standard canonical ranks in order (highest to lowest)
 # Including both superkingdom and domain for compatibility with pre/post-2025 taxonomies
