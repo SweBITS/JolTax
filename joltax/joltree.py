@@ -21,11 +21,6 @@ import polars as pl
 from rapidfuzz import process, fuzz, utils
 
 # Set up logging for the module
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d [%H:%M:%S]'
-)
 logger = logging.getLogger(__name__)
 
 # Standard canonical ranks in order (highest to lowest)
