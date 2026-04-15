@@ -282,6 +282,7 @@ class JolTree:
             ('Viruses', 3)
         ]
 
+        group_indices = {}
         for group_name, group_code in assignment_order:
             group_info = MACRO_GROUPS[group_name]
             target_tax_id = group_info['tax_id']
@@ -299,6 +300,8 @@ class JolTree:
                         idx = int(matches[0])
                         logger.info(f"Macro group '{group_name}' identified via name match: '{name_to_try}' at index {idx}.")
                         break
+            
+            group_indices[group_name] = idx
 
             if idx != -1:
                 # Verification: Check if the name matches (helpful for custom taxonomies)
@@ -312,6 +315,26 @@ class JolTree:
                 self.macro_groups[mask] = group_code
             else:
                 logger.warning(f"Macro group '{group_name}' (TaxID {target_tax_id} or name '{expected_name}') not found in the taxonomy tree.")
+
+        # 5.80 Refine 'Protists' to exclude the eukaryotic 'trunk'
+        # Any node that is an ancestor of the major kingdoms/domains should be 'Other'
+        logger.info("Refining macro group assignments (cleaning taxonomic trunk)...")
+        trunk_roots = ['Bacteria', 'Archaea', 'Viruses', 'Fungi', 'Metazoa', 'Viridiplantae']
+        trunk_indices = set()
+        for root_name in trunk_roots:
+            ridx = group_indices.get(root_name, -1)
+            if ridx != -1:
+                # Walk up from the parent of the root to the top of the tree
+                curr = self.parents[ridx]
+                while True:
+                    trunk_indices.add(int(curr))
+                    parent = self.parents[curr]
+                    if curr == parent: # Root node reached
+                        break
+                    curr = parent
+        
+        if trunk_indices:
+            self.macro_groups[list(trunk_indices)] = 0
 
         # 6. Pre-calculate canonical rank maps
         self._build_canonical_maps()
