@@ -22,3 +22,28 @@ RANK_TO_CODE = {
     'genus': 'G',
     'species': 'S'
 }
+
+# Macro Groups for coarse-grained classification
+# tax_id: The primary NCBI TaxID for the group
+# name: The expected scientific name for verification
+MACRO_GROUPS = {
+    'Bacteria': {'tax_id': 2, 'name': 'Bacteria'},
+    'Archaea': {'tax_id': 2157, 'name': 'Archaea'},
+    'Viruses': {'tax_id': 10239, 'name': 'Viruses'},
+    'Eukaryota': {'tax_id': 2759, 'name': 'Eukaryota'}, # Intermediate group for Protists
+    'Fungi': {'tax_id': 4751, 'name': 'Fungi'},
+    'Metazoa': {'tax_id': 33208, 'name': 'Metazoa'},
+    'Viridiplantae': {'tax_id': 33090, 'name': 'Viridiplantae'}
+}
+
+# Ordered list of macro group labels for vectorized lookup
+MACRO_GROUP_LABELS = [
+    'Other', 
+    'Bacteria', 
+    'Archaea', 
+    'Viruses', 
+    'Fungi', 
+    'Metazoa', 
+    'Viridiplantae', 
+    'Protists'
+]

@@ -56,7 +56,7 @@ tree = JolTree.load('taxonomy_cache')
 results = tree.search_name('Escherchia', fuzzy=True)
 
 # Annotate a list of TaxIDs with their full canonical rank lineages
-# Returns a Polars DataFrame with columns prefixed by 't_' (e.g., t_phylum, t_genus)
+# Returns a Polars DataFrame with columns prefixed by 't_' (e.g., t_id, t_macro_group, t_root, t_phylum, t_genus)
 df = tree.annotate([9606, 562])
 
 # Batch LCA calculation

@@ -298,11 +298,27 @@ def test_batch_safe_mode(tree):
     dists = tree.get_distance_batch(ids1, ids2, strict=False)
     assert dists[0] == 1
     assert dists[1] == -1
+
+def test_macro_groups(tree):
+    """Verify macro group assignment in mass annotation."""
+    # 562 (E. coli) should be classified as 'Bacteria'
+    df = tree.annotate([562, 1])
     
-    df = tree.annotate(ids1, strict=False)
+    # Check E. coli
+    ec_row = df.filter(pl.col('t_id') == 562).to_dicts()[0]
+    assert ec_row['t_macro_group'] == 'Bacteria'
+    
+    # Check Root (TaxID 1) - should be 'Other'
+    root_row = df.filter(pl.col('t_id') == 1).to_dicts()[0]
+    assert root_row['t_macro_group'] == 'Other'
+    
+    # Test safe mode with missing IDs
+    ids_to_test = [562, 999999]
+    df = tree.annotate(ids_to_test, strict=False)
     assert len(df) == 2
     assert df.row(0, named=True)['t_scientific_name'] == 'Escherichia coli'
     assert df.row(1, named=True)['t_scientific_name'] is None
+    assert df.row(1, named=True)['t_macro_group'] == 'Other'
 
 # --- Type Guard Tests ---
 

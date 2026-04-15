@@ -119,7 +119,7 @@ import numpy as np
 tax_ids = np.random.choice(tree._index_to_id, 1000000)
 
 # Mass annotation (under 1 second)
-# Returns columns: ['t_id', 't_domain', ..., 't_scientific_name', 't_rank']
+# Returns columns: ['t_id', 't_macro_group', 't_root', 't_domain', ..., 't_scientific_name', 't_rank']
 df = tree.annotate(tax_ids)
 
 # Save to Parquet or CSV using Polars

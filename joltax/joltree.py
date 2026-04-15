@@ -4,11 +4,11 @@ joltax/joltree.py
 Implementation of a high-performance, vectorized taxonomy tree.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # The minimum version of a saved taxonomy cache that is compatible with this software.
 # Increment this when making breaking changes to the binary layout or metadata structure.
-MINIMUM_CACHE_VERSION = "0.3.0"
+MINIMUM_CACHE_VERSION = "0.4.0"
 
 import logging
 import os
@@ -20,7 +20,7 @@ import numpy as np
 import polars as pl
 from rapidfuzz import process, fuzz, utils
 
-from .constants import CANONICAL_RANKS, RANK_TO_CODE
+from .constants import CANONICAL_RANKS, RANK_TO_CODE, MACRO_GROUPS, MACRO_GROUP_LABELS
 from .exceptions import TaxIDNotFoundError, TaxonomyIntegrityError
 
 # Set up logging for the module
@@ -266,6 +266,41 @@ class JolTree:
                 mask = (self.entry_times >= entry) & (self.entry_times <= exit_time)
                 self.root_types[mask] = rtype
 
+        # 5.75 Identify macro groups for coarse-grained classification
+        logger.info("Identifying macro groups for coarse-grained classification...")
+        self.macro_groups = np.zeros(num_nodes, dtype=np.uint8) # Default 0 = "Other"
+
+        # Define priority order for clade assignments. 
+        # Overlapping clades (like Eukaryota containing Fungi) are resolved by order.
+        assignment_order = [
+            ('Eukaryota', 7), # Protists
+            ('Fungi', 4),
+            ('Metazoa', 5),
+            ('Viridiplantae', 6),
+            ('Bacteria', 1),
+            ('Archaea', 2),
+            ('Viruses', 3)
+        ]
+
+        for group_name, group_code in assignment_order:
+            group_info = MACRO_GROUPS[group_name]
+            target_tax_id = group_info['tax_id']
+            expected_name = group_info['name']
+            
+            idx = self._get_index(target_tax_id)
+            if idx != -1:
+                # Verification: Check if the name matches (helpful for custom taxonomies)
+                actual_name = self._scientific_names[idx]
+                if actual_name != expected_name:
+                    logger.warning(f"Macro group mismatch: TaxID {target_tax_id} is '{actual_name}' but expected '{expected_name}'. Using it anyway.")
+                
+                entry = self.entry_times[idx]
+                exit_time = self.exit_times[idx]
+                mask = (self.entry_times >= entry) & (self.entry_times <= exit_time)
+                self.macro_groups[mask] = group_code
+            else:
+                logger.warning(f"Macro group '{group_name}' (TaxID {target_tax_id}) not found in the taxonomy tree.")
+
         # 6. Pre-calculate canonical rank maps
         self._build_canonical_maps()
         
@@ -289,11 +324,17 @@ class JolTree:
         # Root types lookup
         self._root_types_lookup = pl.Series([None, "cellular", "acellular"])
         
+        # Macro groups lookup
+        self._macro_groups_lookup = pl.Series(MACRO_GROUP_LABELS)
+        
         # Ranks extended with a pointer to "unclassified" for unknown nodes
         self._ranks_extended = np.append(self.ranks, [len(self.rank_names)]).astype(np.int32)
         
         # Root types extended with a pointer to undefined (0) for unknown nodes
         self._root_types_extended = np.append(self.root_types, [0]).astype(np.uint8)
+
+        # Macro groups extended with a pointer to "Other" (0) for unknown nodes
+        self._macro_groups_extended = np.append(self.macro_groups, [0]).astype(np.uint8)
 
     def _build_canonical_maps(self) -> None:
         """Pre-calculates canonical rank ancestors for all nodes."""
@@ -907,22 +948,30 @@ class JolTree:
         sci_names_lookup = self._sci_names_lookup
         com_names_lookup = self._com_names_lookup
         root_types_lookup = self._root_types_lookup
+        macro_groups_lookup = self._macro_groups_lookup
         rank_names_series = self._rank_names_series
         ranks_extended = self._ranks_extended
         root_types_extended = self._root_types_extended
+        macro_groups_extended = self._macro_groups_extended
         
         assert sci_names_lookup is not None
         assert com_names_lookup is not None
         assert root_types_lookup is not None
+        assert macro_groups_lookup is not None
         assert rank_names_series is not None
         assert ranks_extended is not None
         assert root_types_extended is not None
+        assert macro_groups_extended is not None
             
         df_dict = {"t_id": ids_arr}
         
         # Root type for the input TaxID
         target_root_type_indices = root_types_extended[safe_indices]
         df_dict["t_root"] = root_types_lookup.gather(target_root_type_indices.astype(np.int32))
+        
+        # Macro group for the input TaxID
+        target_macro_group_indices = macro_groups_extended[safe_indices]
+        df_dict["t_macro_group"] = macro_groups_lookup.gather(target_macro_group_indices.astype(np.int32))
         
         for rank in canonical_columns:
             # canonical_maps now store internal indices
@@ -947,7 +996,7 @@ class JolTree:
         df_dict["t_common_name"] = com_names_lookup.gather(safe_indices.astype(np.int32))
         
         df = pl.DataFrame(df_dict)
-        final_order = ['t_id', 't_root'] + [f"t_{rank}" for rank in canonical_columns] + ['t_scientific_name', 't_common_name', 't_rank']
+        final_order = ['t_id', 't_macro_group', 't_root'] + [f"t_{rank}" for rank in canonical_columns] + ['t_scientific_name', 't_common_name', 't_rank']
         return df.select(final_order)
 
     @property
@@ -1015,6 +1064,7 @@ class JolTree:
         np.save(os.path.join(directory, "depths.npy"), self.depths)
         np.save(os.path.join(directory, "ranks.npy"), self.ranks)
         np.save(os.path.join(directory, "root_types.npy"), self.root_types)
+        np.save(os.path.join(directory, "macro_groups.npy"), self.macro_groups)
         np.save(os.path.join(directory, "entry_times.npy"), self.entry_times)
         np.save(os.path.join(directory, "exit_times.npy"), self.exit_times)
         
@@ -1091,6 +1141,7 @@ class JolTree:
         tree.depths = np.load(os.path.join(directory, "depths.npy"))
         tree.ranks = np.load(os.path.join(directory, "ranks.npy"))
         tree.root_types = np.load(os.path.join(directory, "root_types.npy"))
+        tree.macro_groups = np.load(os.path.join(directory, "macro_groups.npy"))
         tree.entry_times = np.load(os.path.join(directory, "entry_times.npy"))
         tree.exit_times = np.load(os.path.join(directory, "exit_times.npy"))
         

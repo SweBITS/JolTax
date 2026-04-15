@@ -31,6 +31,7 @@ This file provides the necessary context for Gemini CLI to maintain the architec
 - [x] **VERSION 0.3.0 RELEASED:** Added `t_root` (cellular/acellular) and `t_common_name` columns to annotation output.
 
 ## Pending Roadmap
+- [x] **VERSION 0.4.0 RELEASED:** Added `t_macro_group` (Bacteria/Archaea/Viruses/Fungi/Metazoa/Viridiplantae/Protists/Other) to annotation output.
 - [ ] **Viral Realm as Domain Alias:** Explore aliasing the viral `realm` rank to the `domain` (or `superkingdom`) rank in `_build_canonical_maps`. Because NCBI describes these two ranks as equivalent for viral taxonomy, projecting `realm` into the `t_domain` column would unify cellular and acellular top-level classifications without altering the underlying tree schema.
 - [ ] **Join-Safe Search Metadata:** Update the `search_name` method to return columns with the `t_` prefix (e.g., `t_id`, `t_scientific_name`, `t_rank`, `t_score`) to mimic the output of `annotate`. This ensures ecosystem-wide consistency and join-safety without requiring changes to the underlying binary cache schema.
 - [ ] **Abundance-Weighted DFS Sort:** Implement a `sort_by_weight(tax_ids, weights, cumulative=False)` method. This should perform a hyper-vectorized Pre-order Traversal of the active subtree.
