@@ -910,7 +910,8 @@ class JolTree:
             
         Returns:
             A Polars DataFrame containing columns for each canonical rank (prefixed with 't_'),
-            plus 't_id', 't_scientific_name' and 't_rank'.
+            plus 't_id', 't_macro_group' (coarse classification), 't_root' (cellular/acellular),
+            't_scientific_name', 't_common_name', and 't_rank'.
             
         Example:
             >>> tree.annotate(562) # Single ID works

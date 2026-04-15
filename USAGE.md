@@ -113,6 +113,19 @@ A common use case: turning a column of TaxIDs into a full taxonomic table with l
 
 Starting in version 0.2.0, all output columns are prefixed with `t_` (e.g., `t_phylum`, `t_scientific_name`) to avoid collisions when joining with your own data. The input TaxID column is renamed to `t_id`.
 
+#### Macro Groups (v0.4.0)
+Starting in version 0.4.0, the `annotate()` method includes a `t_macro_group` column. This provides a coarse-grained classification useful for quick visualization and plotting of metagenomics data.
+
+The groups are assigned based on major clades:
+- **Bacteria**
+- **Archaea**
+- **Viruses** (including satellites)
+- **Fungi**
+- **Metazoa**
+- **Viridiplantae**
+- **Protists** (Any Eukaryote that is not Fungi, Metazoa, or Viridiplantae)
+- **Other** (Root, unclassified sequences, etc.)
+
 ```python
 # List of 1,000,000 TaxIDs
 import numpy as np
