@@ -288,10 +288,22 @@ class JolTree:
             expected_name = group_info['name']
             
             idx = self._get_index(target_tax_id)
+            
+            # Name-based fallback for custom/merged taxonomies (e.g., GTDB d__Bacteria)
+            if idx == -1:
+                # Search for the name or the d__ prefixed version
+                for name_to_try in [expected_name, f"d__{expected_name}"]:
+                    # self._scientific_names is a Polars Series
+                    matches = np.where(self._scientific_names == name_to_try)[0]
+                    if len(matches) > 0:
+                        idx = int(matches[0])
+                        logger.info(f"Macro group '{group_name}' identified via name match: '{name_to_try}' at index {idx}.")
+                        break
+
             if idx != -1:
                 # Verification: Check if the name matches (helpful for custom taxonomies)
                 actual_name = self._scientific_names[idx]
-                if actual_name != expected_name:
+                if actual_name != expected_name and actual_name != f"d__{expected_name}":
                     logger.warning(f"Macro group mismatch: TaxID {target_tax_id} is '{actual_name}' but expected '{expected_name}'. Using it anyway.")
                 
                 entry = self.entry_times[idx]
@@ -299,7 +311,7 @@ class JolTree:
                 mask = (self.entry_times >= entry) & (self.entry_times <= exit_time)
                 self.macro_groups[mask] = group_code
             else:
-                logger.warning(f"Macro group '{group_name}' (TaxID {target_tax_id}) not found in the taxonomy tree.")
+                logger.warning(f"Macro group '{group_name}' (TaxID {target_tax_id} or name '{expected_name}') not found in the taxonomy tree.")
 
         # 6. Pre-calculate canonical rank maps
         self._build_canonical_maps()
